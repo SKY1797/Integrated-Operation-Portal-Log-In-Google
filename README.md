@@ -1,2 +1,2 @@
 Log-in-test
-Google
+With Google sign-in
