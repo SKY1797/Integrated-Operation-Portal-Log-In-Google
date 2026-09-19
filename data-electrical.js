@@ -6802,7 +6802,7 @@ const electricalData = {
     ["20MAN10AP003", "Lp bypass valve filteration pump motor", "TVDC", "4.16 R / 6A"],
     ["20MAN10AP003", "LP bypass valve filteration pump motor", "UES", "17.14F"],
     ["20MAN10AP001", "LP Bypass valve hydraulic Pump-1 motor", "TMCC", "7.9R / 11KW / 21A"],
-    ["20MAN10AP002", "LP Bypass valve hydraulic Pump-2 motor", "UES", "26.16R / 11KW / 21A"],
+    ["20MAN10AP002", "LP Bypass valve hydraulic Pump-2 motor", "UES", "13.15F / 11KW / 21A"],
     ["20MAC80AA001", "LP turbine exhaust hood spray control valve", "TVDC", "9.8R / 6A"],
     ["20LCJ35AP010", "LPH DRIP PUMP-1", "USS-2A", "5A / 180KW / 300A"],
     ["20LCJ36AP010", "LPH DRIP PUMP-2", "USS-2A", "14A / 180KW / 300A"],
