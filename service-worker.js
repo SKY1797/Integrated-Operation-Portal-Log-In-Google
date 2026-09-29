@@ -8,9 +8,6 @@ const urlsToCache = [
     './app.js',
     './data-electrical.js',
     './data-protection.js',
-
-    // './data-docs.js',
-
     './manifest.json',
     './icon-192.png',
     './icon-512.png',
