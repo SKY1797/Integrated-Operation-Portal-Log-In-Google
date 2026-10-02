@@ -43,7 +43,7 @@ const elecData = typeof electricalData !== 'undefined' ? electricalData : {};
 const protData = typeof protectionData !== 'undefined' ? protectionData : {};
 
 // DYNAMIC DOCS DATA
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby2wGBqPtlHr02TTVi25C5GBK7QKWwiYX5uyFYO_EkVMxe6zJexKrWNTEVo0eHBkL_p/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwihfjnqOQdiBEoD3D-8RCBAM60sa0hXaQbn_0tZM_mVXrofR7XGXvmegxcDkQ4AQgh/exec';
 let docData = [];
 let isDocsLoading = false;
 let docsError = null;
