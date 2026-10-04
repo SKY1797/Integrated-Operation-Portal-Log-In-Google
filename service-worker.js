@@ -1,4 +1,4 @@
-const CACHE_NAME = 'Operation-portal-log-in-google-v002';
+const CACHE_NAME = 'Operation-portal-log-in-google-v003';
 
 // Cache all essential shell files and the modular data files
 const urlsToCache = [
