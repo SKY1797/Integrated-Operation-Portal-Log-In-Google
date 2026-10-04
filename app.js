@@ -8,30 +8,23 @@ let appState = {
 };
 
 // --- Authentication State ---
-const GOOGLE_CLIENT_ID = '509507511333-5oul3ksh0acltgkk2mu27trhtv47rltk.apps.googleusercontent.com'; //ID is from akash007kantaria@gamil.com
+const GOOGLE_CLIENT_ID = '509507511333-5oul3ksh0acltgkk2mu27trhtv47rltk.apps.googleusercontent.com'; // ID is from project generated on akash007kantaria google id
 let tokenClient;
-let userEmail = sessionStorage.getItem('opsPortalUserEmail') || null;
+let driveAccessToken = sessionStorage.getItem('opsPortalDriveToken') || null;
 
 // Function to handle Google Login
 function handleGoogleLogin() {
     if (!tokenClient) {
         tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CLIENT_ID,
-            scope: 'email profile openid', // Removed sensitive Drive scope
-            callback: async (tokenResponse) => {
+            scope: 'https://www.googleapis.com/auth/drive.readonly',
+            callback: (tokenResponse) => {
                 if (tokenResponse && tokenResponse.access_token) {
-                    // Fetch the user's email using the non-sensitive token
-                    const userInfoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                        headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-                    });
-                    const userInfo = await userInfoResp.json();
-                    
-                    if (userInfo.email) {
-                        userEmail = userInfo.email;
-                        sessionStorage.setItem('opsPortalUserEmail', userEmail);
-                        initDocsData(); // Fetch documents now that we have identity
-                        renderApp(); 
-                    }
+                    driveAccessToken = tokenResponse.access_token;
+                    // Save token to session storage so it persists across refreshes
+                    sessionStorage.setItem('opsPortalDriveToken', driveAccessToken);
+                    // Re-render the app to show the documents
+                    renderApp(); 
                 }
             },
         });
@@ -40,10 +33,8 @@ function handleGoogleLogin() {
 }
 
 function handleGoogleLogout() {
-    userEmail = null;
-    sessionStorage.removeItem('opsPortalUserEmail');
-    docData = []; // Clear restricted data from memory
-    localStorage.removeItem('opsPortalDocsData');
+    driveAccessToken = null;
+    sessionStorage.removeItem('opsPortalDriveToken');
     updateState({ module: 'HOME' });
 }
 
@@ -82,30 +73,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Dynamic Data Initialization ---
 async function initDocsData() {
-    if (!userEmail) return; // Do not fetch if not logged in
-
+    // 1. Check Cache for instant load
     const cachedData = localStorage.getItem('opsPortalDocsData');
     if (cachedData) {
         try {
             docData = JSON.parse(cachedData);
-            if (appState.module === 'DOCS') renderApp();
+            if (appState.module === 'DOCS') renderApp(); // Re-render if already on docs
         } catch (e) {
             console.error("Cache parsing error", e);
         }
     } else {
         isDocsLoading = true;
-        if (appState.module === 'DOCS') renderApp();
+        if (appState.module === 'DOCS') renderApp(); // Show loading if no cache
     }
 
+    // 2. Fetch fresh from Google Apps Script
     try {
-        const url = `${SCRIPT_URL}?action=list&email=${encodeURIComponent(userEmail)}`;
-        const response = await fetch(url);
-        const freshData = await response.json();
+        const response = await fetch(SCRIPT_URL);
+        const rawText = await response.text();
+        const freshData = JSON.parse(rawText);
 
         if (freshData.error) {
             docsError = freshData.error;
         } else {
-            localStorage.setItem('opsPortalDocsData', JSON.stringify(freshData));
+            localStorage.setItem('opsPortalDocsData', rawText); // Save for next time
             docData = freshData;
             docsError = null;
         }
@@ -114,7 +105,7 @@ async function initDocsData() {
         docsError = "Network error. Showing cached data if available.";
     } finally {
         isDocsLoading = false;
-        if (appState.module === 'DOCS') renderApp();
+        if (appState.module === 'DOCS') renderApp(); // Render with updated data silently
     }
 }
 
@@ -461,7 +452,7 @@ function formatName(n) { return n.replace(/\.[^/.]+$/, ""); }
 function renderDocs() {
 
     // 0.1 AUTHENTICATION GATEKEEPER
-    if (!userEmail) {
+    if (!driveAccessToken) {
         return `
             <div class="page-head">
                 <h2 class="page-title font-mono">Operation Documents</h2>
@@ -575,9 +566,10 @@ function renderDocs() {
     });
 
     files.forEach(f => {
+        const url = `https://drive.google.com/file/d/${f.id}/preview`;
         const cn = formatName(f.name).replace(/'/g, "\\'");
         content += `
-            <button class="ui-card" style="padding: 0.8rem;" onclick="openDocument('${f.id}', '${cn}')">
+            <button class="ui-card" style="padding: 0.8rem;" onclick="openDocument('${url}', '${cn}')">
                 <div style="display:flex; align-items:center; gap:0.6rem;">
                     <div class="card-icon-box" style="width: 1.65rem; height: 1.65rem; flex-shrink: 0; background: white; box-shadow: none;">${iconFile}</div>
                     <span class="card-title font-mono" style="font-size:1rem; text-align: left;">${formatName(f.name)}</span>
@@ -620,7 +612,7 @@ function setupDocsSearch() {
                 const u = `https://drive.google.com/file/d/${d.id}/preview`;
                 const n = formatName(d.name).replace(/'/g, "\\'");
                 return `
-                    <div class="search-drop-item" onclick="openDocument('${d.id}', '${n}')">
+                    <div class="search-drop-item" onclick="openDocument('${u}', '${n}')">
                         <div class="sdi-main">${formatName(d.name)}</div>
                         <div class="sdi-sub">Path: ${d.path.join(' / ')}</div>
                     </div>
@@ -640,60 +632,23 @@ function setupDocsSearch() {
 function docsNavigate(folder) { updateState({ docsPath: [...appState.docsPath, folder] }); }
 function docsGoBack() { const np = [...appState.docsPath]; np.pop(); updateState({ docsPath: np }); }
 
-async function openDocument(fileId, title) {
-    document.getElementById('modalTitle').innerText = title + ' (Loading Securely...)';
-    document.getElementById('docViewer').src = '';
+function openDocument(url, title) {
+    document.getElementById('modalTitle').innerText = title;
+    document.getElementById('docViewer').src = url;
     document.getElementById('docModal').style.display = 'block';
     document.body.style.overflow = 'hidden';
 
+    // Allow pinch-zoom inside the iframe by unlocking the parent viewport
     let viewportMeta = document.querySelector('meta[name="viewport"]');
     if (viewportMeta) viewportMeta.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes");
-
-    try {
-        const url = `${SCRIPT_URL}?action=view&email=${encodeURIComponent(userEmail)}&fileId=${fileId}`;
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.error) {
-            alert(data.error);
-            closeDocument();
-            return;
-        }
-
-        // Convert Base64 to a robust Blob URL for the iframe
-        const byteCharacters = atob(data.data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], {type: data.mimeType});
-        const blobUrl = URL.createObjectURL(blob);
-        
-        document.getElementById('docViewer').src = blobUrl;
-        document.getElementById('modalTitle').innerText = title;
-        
-        // Optional: Clean up blob memory when document closes
-        document.getElementById('docModal').dataset.currentBlob = blobUrl;
-
-    } catch (err) {
-        alert("Failed to load document securely.");
-        closeDocument();
-    }
 }
 
 function closeDocument() {
     document.getElementById('docModal').style.display = 'none';
     document.getElementById('docViewer').src = '';
     document.body.style.overflow = 'auto';
-    
-    // Memory cleanup for the Blob
-    const modal = document.getElementById('docModal');
-    if (modal.dataset.currentBlob) {
-        URL.revokeObjectURL(modal.dataset.currentBlob);
-        delete modal.dataset.currentBlob;
-    }
 
+    // Lock the viewport again when returning to the app shell
     let viewportMeta = document.querySelector('meta[name="viewport"]');
     if (viewportMeta) viewportMeta.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no");
 }
